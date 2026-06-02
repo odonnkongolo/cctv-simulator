@@ -1,13 +1,13 @@
-**📄 CCTV Simulator Deployment Guide
-**
-**Prerequisite
-**
+***📄 CCTV Simulator Deployment Guide***
+
+**Prerequisite**
+
 1. Download and install Docker Desktop for Mac or Windows.
 2. Ensure it is running before starting.
 
 
-**Get the Code
-**
+**Get the Code**
+
 1. Clone the repository to your machine (or extract the provided project ZIP archive):
 
 _git clone https://github.com/YourUsername/cctv-simulator.git
@@ -18,13 +18,13 @@ cd cctv-simulator_
 (Alternatively, they can modify the volume path in docker-compose.yml to point to their own video file).  
 
 
-**Fire It Up
-**
+**Fire It Up**
+
 1. Run this single command in your terminal to automatically build and launch the environment:
 
-_docker compose up -d
-_
-2. Control the Streams. Open your browser and navigate to http://localhost:5050 to access the control panel.
+_docker compose up -d_
+
+2. Control the Streams. Open your browser and navigate to _http://localhost:5050_ to access the control panel.
 3. Input your desired Camera Count and hit Apply Changes.
 4. Click ▶ Start Simulator.
 

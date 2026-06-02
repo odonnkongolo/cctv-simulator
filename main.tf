@@ -185,4 +185,9 @@ resource "docker_container" "cadvisor" {
     container_path = "/var/lib/docker"
     read_only      = true
   }
+  volumes {
+    host_path      = "/dev/disk"
+    container_path = "/dev/disk"
+    read_only      = true
+  }
 }

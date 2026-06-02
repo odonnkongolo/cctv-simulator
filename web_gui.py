@@ -43,7 +43,7 @@ API_PORT    = 9997
 
 # Hardcoded credentials — change here or inject via environment variables
 AUTH_USERNAME = os.environ.get("DASHBOARD_USER", "admin")
-AUTH_PASSWORD = os.environ.get("DASHBOARD_PASS", "securecamera123")
+AUTH_PASSWORD = os.environ.get("DASHBOARD_PASS", "Exacq11955!")
 
 
 # ---------------------------------------------------------------------------

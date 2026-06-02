@@ -166,8 +166,18 @@ resource "docker_container" "cadvisor" {
   }
 
   volumes {
-    host_path      = "/var/run/docker.sock"
-    container_path = "/var/run/docker.sock"
+    host_path      = "/"
+    container_path = "/rootfs"
+    read_only      = true
+  }
+  volumes {
+    host_path      = "/var/run"
+    container_path = "/var/run"
+    read_only      = true
+  }
+  volumes {
+    host_path      = "/sys"
+    container_path = "/sys"
     read_only      = true
   }
 }

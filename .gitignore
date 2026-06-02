@@ -1,0 +1,13 @@
+# Credentials — never commit to source control
+.htpasswd
+
+# macOS metadata
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker volumes / local overrides
+*.log

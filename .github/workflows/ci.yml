@@ -1,0 +1,34 @@
+name: Python Code Linting
+
+# 1. Trigger the pipeline on any push to the main branch
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-and-lint:
+    # 2. Spin up a clean, hosted Ubuntu server in the cloud
+    runs-on: ubuntu-latest
+
+    steps:
+    # 3. Pull your code from your repository onto that new server
+    - name: Checkout Repository Code
+      uses: actions/checkout@v4
+
+    # 4. Set up Python on that server
+    - name: Set up Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    # 5. Install flake8 (a standard tool to check for Python syntax errors)
+    - name: Install Linting Tools
+      run: |
+        python -m pip upgrade pip
+        pip install flake8
+
+    # 6. Run the check against your python scripts
+    - name: Check Python Syntax for Errors
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics

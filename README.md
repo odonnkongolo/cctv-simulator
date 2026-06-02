@@ -1,83 +1,59 @@
-# 📹 CCTV IP Camera Simulator
+# 📹 Exacq Camera Simulator & Telemetry Stack
 
-### 🎛️ Management Dashboard
+This repository contains the Infrastructure as Code (IaC) to deploy a localized camera simulator alongside an enterprise-grade monitoring stack (**Prometheus**, **cAdvisor**, and **Grafana**). 
 
-A secure, containerized Linux-based utility designed to simulate repeatable RTSP camera streams for VMS/NVR testing (such as exacqVision) without requiring physical hardware. Built using **MediaMTX** as the core RTSP server, **FFmpeg** for video looping processing, and a custom **Flask** web interface wrapped in an **Nginx** reverse proxy.
+This environment allows us to generate active video streams for Exacq environments while actively monitoring the hardware footprint (CPU, Memory, Network) of the simulation engine in real-time.
 
 ---
 
-## 🏗️ System Architecture
+## ⚙️ Prerequisites
+Before deploying, ensure your local machine has the following installed:
+* 🐳 [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Running in the background)
+* 🌍 [Terraform CLI](https://developer.hashicorp.com/terraform/downloads)
 
-```text
-       [ NVR / VMS Client ]               [ Web Browser ]
-               |                                 |
-        (RTSP Port 8554)                  (HTTP Port 5050)
-               v                                 v
-+-------------------------------------------------------------+
-|    Docker Container / Terraform Local State Managed Pod     |
-|                                                             |
-|  +-----------------------+       +-----------------------+  |
-|  | MediaMTX RTSP Engine  |       |  Nginx Reverse Proxy  |  |
-|  |      (Port 8554)      |       |  (Port 80 -> 5050)    |  |
-|  +-----------------------+       +-----------------------+  |
-|              ^                                 |            |
-|              | (Feeds Streams)                 v (Internal) |
-|  +-----------------------+       +-----------------------+  |
-|  |  FFmpeg Video Loops   |       |   Flask Control Web   |  |
-|  |  (pgrep -c ffmpeg)    |<------+ Dashboard (web_gui)   |  |
-|  +-----------------------+       +-----------------------+  |
-+-------------------------------------------------------------+
+---
+
+## 🚀 Quick Start Guide
+
+### 1️⃣ Clone the Repository
+Pull the latest infrastructure code to your local machine and navigate into the directory.
+```bash
+git clone <insert-your-repo-url-here>
+cd <your-repo-folder-name>
+```
+
+### 2️⃣ Initialize Terraform
+This command downloads the necessary Docker providers and prepares the local backend state. You only need to run this once.
+```bash
+terraform init
+```
+
+### 3️⃣ Deploy the Infrastructure
+This command will automatically provision the Docker network, pull the required images, map the volume sensors, and launch the full 5-container stack.
+```bash
+terraform apply -auto-approve
 ```
 
 ---
 
-## ✨ Core Features
+## 💻 Accessing the Dashboards
+Once the deployment completes (usually under 15 seconds), the telemetry pipeline is fully operational. You can access the UI command centers via your local browser:
 
-*   **🔒 Session-Based Authentication:** Secured behind a beautiful, dark-themed login portal matching the uniform system style.
-*   **⚙️ Dynamic Stream Configuration:** Real-time generation of custom camera counts (1–180+) with full pagination handling for massive configurations.
-*   **☁️ Infrastructure-as-Code Native:** Zero manual workspace configurations required; can be provisioned entirely through Terraform.
-*   **🚀 Automated Delivery:** Integrated with GitHub Actions CI/CD to lint Python scripts and compile Docker images automatically.
+*   📊 **Grafana (Main Dashboard)**: [http://localhost:3000](http://localhost:3000)
+    *   **Default Login**: `admin` / `admin` (You will be prompted to change this on first login).
+    *   **Navigation**: Go to *Dashboards > cAdvisor exporter* to view live CPU, Memory, and Network traffic for the simulator and Nginx router.
 
----
+*   📈 **Prometheus (Raw Database)**: [http://localhost:9090](http://localhost:9090)
 
-## 🚀 Getting Started (Choose Your Method)
-
-### 🐳 Option A: Quick QA Deployment (Docker Compose)
-*Ideal for standard testing and validation cycles.*
-
-1. Ensure Docker Desktop is running on your machine.
-2. Add your reference MP4 file to the root workspace directory as `test-video-tokyo-walking.mp4`.
-3. Fire up the entire stack with a single command:
-   ```bash
-   docker compose up -d
-   ```
-
-### 🌍 Option B: Enterprise GitOps Provisioning (Terraform)
-*Ideal for infrastructure engineers who want declarative lifecycle management.*
-
-1. Initialize the required local Docker providers:
-   ```bash
-   terraform init
-   ```
-2. Verify the execution blueprint:
-   ```bash
-   terraform plan
-   ```
-3. Provision and deploy the environment:
-   ```bash
-   terraform apply -auto-approve
-   ```
+*   📡 **cAdvisor (Raw Sensors)**: [http://localhost:8080](http://localhost:8080)
 
 ---
 
-## 💻 Interacting with the Tool
-
-| Target Resource | Access Location | Purpose |
-| :--- | :--- | :--- |
-| **Control Panel** | [http://localhost:5050](http://localhost:5050) | Access dashboard to adjust camera settings and toggle state. |
-| **RTSP Target URL** | `rtsp://localhost:8554/cam1` | Target format to paste directly into your NVR connection window. |
-| **Default User** | `admin` | Default username credential for the session login shield. |
-| **Default Password** | `Exacq11955!` | Default password credential for the session login shield. |
+## 🗑️ Teardown
+To completely destroy the environment and wipe the containers from your machine, run:
+```bash
+terraform destroy -auto-approve
+```
 
 ---
 

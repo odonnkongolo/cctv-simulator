@@ -1,0 +1,21 @@
+# =============================================================================
+# docker-compose.yml — CCTV IP Camera Simulator
+# =============================================================================
+# Usage:
+#   docker compose up --build        (build & start)
+#   docker compose down              (stop & remove)
+# =============================================================================
+
+services:
+  cctv-simulator:
+    build: .
+    container_name: cctv-simulator
+    ports:
+      - "5050:5000"    # Flask web dashboard (5050 on host → 5000 in container)
+      - "8554:8554"    # RTSP streams
+      - "8554:8554/udp"
+      - "9997:9997"    # MediaMTX REST API
+    volumes:
+      # Mount your local video file into the container's video directory
+      - /Users/ojayodon/Developer/cctv-simulator/test-video-tokyo-walking.mp4:/opt/cctv-simulator/videos/camera.mp4:ro
+    restart: unless-stopped

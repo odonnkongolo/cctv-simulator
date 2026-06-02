@@ -30,12 +30,12 @@ resource "docker_network" "cctv_net" {
 
 # Flask Web / Simulator Container
 resource "docker_container" "web" {
-  name  = "cctv-simulator"
-  image = data.docker_image.web_image.name
+  name    = "cctv-simulator"
+  image   = data.docker_image.web_image.name
   restart = "unless-stopped"
-  
+
   networks_advanced {
-    name = docker_network.cctv_net.name
+    name    = docker_network.cctv_net.name
     aliases = ["web"]
   }
 
@@ -67,8 +67,8 @@ resource "docker_container" "web" {
 
 # Nginx Reverse Proxy Container
 resource "docker_container" "nginx" {
-  name  = "cctv-nginx"
-  image = docker_image.nginx_image.name
+  name    = "cctv-nginx"
+  image   = docker_image.nginx_image.name
   restart = "unless-stopped"
 
   networks_advanced {
@@ -107,12 +107,12 @@ resource "docker_image" "cadvisor_image" {
 
 # Prometheus Container
 resource "docker_container" "prometheus" {
-  name  = "prometheus"
-  image = docker_image.prometheus_image.name
+  name    = "prometheus"
+  image   = docker_image.prometheus_image.name
   restart = "unless-stopped"
 
   networks_advanced {
-    name = docker_network.cctv_net.name
+    name    = docker_network.cctv_net.name
     aliases = ["prometheus"]
   }
 
@@ -131,12 +131,12 @@ resource "docker_container" "prometheus" {
 
 # Grafana Container
 resource "docker_container" "grafana" {
-  name  = "grafana"
-  image = docker_image.grafana_image.name
+  name    = "grafana"
+  image   = docker_image.grafana_image.name
   restart = "unless-stopped"
 
   networks_advanced {
-    name = docker_network.cctv_net.name
+    name    = docker_network.cctv_net.name
     aliases = ["grafana"]
   }
 
@@ -149,13 +149,13 @@ resource "docker_container" "grafana" {
 
 # cAdvisor Container
 resource "docker_container" "cadvisor" {
-  name  = "cadvisor"
-  image = docker_image.cadvisor_image.name
-  restart = "unless-stopped"
+  name       = "cadvisor"
+  image      = docker_image.cadvisor_image.name
+  restart    = "unless-stopped"
   privileged = true
 
   networks_advanced {
-    name = docker_network.cctv_net.name
+    name    = docker_network.cctv_net.name
     aliases = ["cadvisor"]
   }
 

@@ -3,29 +3,65 @@
 web_gui.py — Flask dashboard for the CCTV IP Camera Simulator.
 
 Provides a browser UI to:
+  • Authenticate via a custom dark-themed login page (session-based)
   • Check if the RTSP server (port 8554) is listening
   • Count active FFmpeg stream processes  (pgrep -c ffmpeg)
   • Configure camera count & video path, then generate the config
   • Start / stop the simulator with one click
 """
 
+import functools
 import json
 import os
+import secrets
 import socket
 import subprocess
 import urllib.request
 from datetime import datetime
 
-from flask import Flask, jsonify, render_template_string, request
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template_string,
+    request,
+    session,
+    url_for,
+)
 
 app = Flask(__name__)
-
-INSTALL_DIR = "/opt/cctv-simulator"
-RTSP_PORT = 8554
-API_PORT = 9997
+# A secure random key is generated at startup; sessions are invalidated on container restart.
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Constants
+# ---------------------------------------------------------------------------
+
+INSTALL_DIR = "/opt/cctv-simulator"
+RTSP_PORT   = 8554
+API_PORT    = 9997
+
+# Hardcoded credentials — change here or inject via environment variables
+AUTH_USERNAME = os.environ.get("DASHBOARD_USER", "admin")
+AUTH_PASSWORD = os.environ.get("DASHBOARD_PASS", "securecamera123")
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+def login_required(f):
+    """Decorator that redirects unauthenticated users to /login."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ---------------------------------------------------------------------------
+# System helpers
 # ---------------------------------------------------------------------------
 
 def is_port_listening(port: int) -> bool:
@@ -50,7 +86,6 @@ def ffmpeg_stream_count() -> int:
 def mediamtx_paths() -> list:
     """Query the MediaMTX API and return ALL path items (bypasses 100-item page cap)."""
     try:
-        # itemsPerPage=9999 fetches everything in one shot
         url = f"http://127.0.0.1:{API_PORT}/v3/paths/list?itemsPerPage=9999"
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=2) as resp:
@@ -94,7 +129,248 @@ def run_cmd(cmd: list) -> str:
 
 
 # ---------------------------------------------------------------------------
-# HTML template
+# HTML — Login page
+# ---------------------------------------------------------------------------
+
+LOGIN_TEMPLATE = r"""
+<!DOCTYPE html>
+<html lang="en" style="background:#0b0d11;">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CCTV Simulator — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0b0d11;
+    --surface:   #13161d;
+    --surface-2: #1a1e28;
+    --border:    #242836;
+    --border-hi: #3a3f52;
+    --text:      #e8e8ec;
+    --text-dim:  #9396a5;
+    --accent:    #6366f1;
+    --accent-g:  linear-gradient(135deg, #818cf8, #6366f1);
+    --radius:    14px;
+    --radius-sm: 10px;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  /* Subtle grid pattern overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .login-wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    animation: slideUp 0.45s cubic-bezier(0.22,1,0.36,1) both;
+  }
+
+  /* Glow halo behind the card */
+  .login-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -40px;
+    background: radial-gradient(ellipse at 50% 60%, rgba(99,102,241,0.18), transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+    z-index: -1;
+  }
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .login-logo {
+    font-size: 2rem;
+    font-weight: 800;
+    background: var(--accent-g);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.03em;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .login-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 2rem 1.75rem;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.06);
+  }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.1rem;
+  }
+  .form-row label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .form-row input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.72rem 0.95rem;
+    font-family: inherit;
+    font-size: 0.88rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+  .form-row input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+  }
+  .form-row input::placeholder { color: var(--text-dim); opacity: 0.4; }
+
+  .btn-signin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.78rem 1.5rem;
+    margin-top: 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-g);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: box-shadow 0.25s, transform 0.12s;
+  }
+  .btn-signin:hover {
+    box-shadow: 0 4px 28px rgba(99,102,241,0.5), 0 0 0 1px rgba(129,140,248,0.3);
+  }
+  .btn-signin:active { transform: scale(0.97); }
+
+  .error-msg {
+    background: rgba(248,113,113,0.1);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: var(--radius-sm);
+    color: #fca5a5;
+    font-size: 0.8rem;
+    padding: 0.65rem 0.9rem;
+    margin-bottom: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .footer {
+    margin-top: 2rem;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    text-align: center;
+    opacity: 0.5;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-header">
+    <span class="login-logo">📹 CCTV Simulator</span>
+    <span class="login-subtitle">Restricted Access — Sign in to continue</span>
+  </div>
+
+  <div class="login-card">
+    {% if error %}
+    <div class="error-msg">
+      <span>⚠</span>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/login" autocomplete="on">
+      <input type="hidden" name="next" value="{{ next }}" />
+      <div class="form-row">
+        <label for="username">Username</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          placeholder="Enter username"
+          autocomplete="username"
+          value="{{ username }}"
+          required
+        />
+      </div>
+      <div class="form-row">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Enter password"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+      <button type="submit" class="btn-signin" id="signin-btn">
+        🔒 Sign In
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="footer">CCTV IP Camera Simulator · Docker Container · Odon Nkongolo</div>
+
+</body>
+</html>
+"""
+
+
+# ---------------------------------------------------------------------------
+# HTML — Main dashboard
 # ---------------------------------------------------------------------------
 
 TEMPLATE = r"""
@@ -181,11 +457,33 @@ TEMPLATE = r"""
     background: var(--accent);
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
   .timestamp {
     font-size: 0.72rem;
     color: var(--text-dim);
     font-variant-numeric: tabular-nums;
   }
+
+  /* Logout link */
+  .logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .logout-btn:hover { color: var(--text); border-color: var(--border-hi); }
 
   /* ---------- Status Cards ---------- */
   .section-title {
@@ -422,7 +720,10 @@ TEMPLATE = r"""
       <span id="rtsp-badge-text">{{ "Connected" if rtsp_up else "Down" }}</span>
     </span>
   </div>
-  <span class="timestamp" id="ts">{{ now }}</span>
+  <div class="header-right">
+    <span class="timestamp" id="ts">{{ now }}</span>
+    <a href="/logout" class="logout-btn" title="Sign out">⎋ Sign Out</a>
+  </div>
 </div>
 
 <div class="section-title fade-in">System Status</div>
@@ -519,6 +820,7 @@ function termLog(msg, cls) {
 async function refreshStatus() {
   try {
     const res = await fetch('/api/status');
+    if (res.status === 401 || res.redirected) { location.href = '/login'; return; }
     const d = await res.json();
     document.getElementById('rtsp-text').textContent    = d.rtsp_listening ? 'Listening' : 'Down';
     document.getElementById('rtsp-badge-text').textContent = d.rtsp_listening ? 'Connected' : 'Down';
@@ -536,6 +838,7 @@ async function doAction(url) {
   termLog('Running…');
   try {
     const res = await fetch(url, { method: 'POST' });
+    if (res.status === 401 || res.redirected) { location.href = '/login'; return; }
     const data = await res.json();
     if (data.output) termLog(data.output);
     else termLog(JSON.stringify(data, null, 2));
@@ -565,6 +868,7 @@ async function applyConfig(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ camera_count: parseInt(camCount), video_path: videoPath }),
     });
+    if (res.status === 401 || res.redirected) { location.href = '/login'; return; }
     const data = await res.json();
     if (data.output) termLog(data.output);
     else termLog(JSON.stringify(data, null, 2));
@@ -587,7 +891,7 @@ async function applyConfig(e) {
 
 
 # ---------------------------------------------------------------------------
-# Read current config defaults
+# Read / write config
 # ---------------------------------------------------------------------------
 
 def read_cameras_conf() -> dict:
@@ -635,10 +939,54 @@ def write_cameras_conf(cam_count: int, video_path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Routes
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    # Already logged in — go straight to the dashboard
+    if session.get("authenticated"):
+        return redirect(url_for("dashboard"))
+
+    error    = None
+    username = ""
+    next_url = request.values.get("next", "/")
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        next_url = request.form.get("next", "/")
+
+        if username == AUTH_USERNAME and password == AUTH_PASSWORD:
+            session["authenticated"] = True
+            session.permanent = False
+            # Guard against open-redirect: only allow relative paths
+            if not next_url.startswith("/"):
+                next_url = "/"
+            return redirect(next_url)
+        else:
+            error = "Invalid username or password."
+
+    return render_template_string(
+        LOGIN_TEMPLATE,
+        error=error,
+        username=username,
+        next=next_url,
+    )
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ---------------------------------------------------------------------------
+# Dashboard route
 # ---------------------------------------------------------------------------
 
 @app.route("/")
+@login_required
 def dashboard():
     conf = read_cameras_conf()
     return render_template_string(
@@ -653,11 +1001,16 @@ def dashboard():
     )
 
 
+# ---------------------------------------------------------------------------
+# API routes (all protected)
+# ---------------------------------------------------------------------------
+
 @app.route("/api/config", methods=["POST"])
+@login_required
 def api_config():
     """Run generate_config.py and persist settings back to cameras.conf."""
     data = request.get_json(force=True)
-    cam_count = int(data.get("camera_count", 10))
+    cam_count  = int(data.get("camera_count", 10))
     video_path = data.get("video_path", "/opt/cctv-simulator/videos/camera.mp4")
 
     # 1. Generate mediamtx.yml
@@ -680,12 +1033,14 @@ def api_config():
 
 
 @app.route("/api/start", methods=["POST"])
+@login_required
 def api_start():
     output = run_script("start_cameras.sh")
     return jsonify({"status": "ok", "output": output})
 
 
 @app.route("/api/stop", methods=["POST"])
+@login_required
 def api_stop():
     """Cleanly kill MediaMTX and FFmpeg processes."""
     lines = []
@@ -709,6 +1064,7 @@ def api_stop():
 
 
 @app.route("/api/status")
+@login_required
 def api_status():
     return jsonify({
         "rtsp_listening": is_port_listening(RTSP_PORT),
